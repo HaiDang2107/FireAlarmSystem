@@ -22,6 +22,7 @@
 #include "stm32f1xx_it.h"
 #include "FreeRTOS.h"
 #include "task.h"
+#include "cmsis_os.h"
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 /* USER CODE END Includes */
@@ -59,8 +60,13 @@
 /* External variables --------------------------------------------------------*/
 extern ADC_HandleTypeDef hadc1;
 extern ADC_HandleTypeDef hadc2;
+extern UART_HandleTypeDef huart1;
 /* USER CODE BEGIN EV */
-
+extern int threshold1;
+extern int threshold2;
+extern osThreadId_t myTask02Handle;
+extern osMessageQueueId_t airQualityQueueHandle;
+extern osMessageQueueId_t temperatureQueueHandle;
 /* USER CODE END EV */
 
 /******************************************************************************/
@@ -198,6 +204,20 @@ void ADC1_2_IRQHandler(void)
   /* USER CODE END ADC1_2_IRQn 1 */
 }
 
+/**
+  * @brief This function handles USART1 global interrupt.
+  */
+void USART1_IRQHandler(void)
+{
+  /* USER CODE BEGIN USART1_IRQn 0 */
+
+  /* USER CODE END USART1_IRQn 0 */
+  HAL_UART_IRQHandler(&huart1);
+  /* USER CODE BEGIN USART1_IRQn 1 */
+
+  /* USER CODE END USART1_IRQn 1 */
+}
+
 /* USER CODE BEGIN 1 */
 void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef* hadc)
 {
@@ -220,5 +240,7 @@ void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef* hadc)
 void HAL_ADC_AnalogWD_Callback(ADC_HandleTypeDef* hadc)
 {
   // for trigger relay
+	if (hadc == &hadc1) threshold1 = 1;
+	if (hadc == &hadc2) threshold2 = 1;
 }
 /* USER CODE END 1 */

@@ -22,7 +22,8 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-
+#include <string.h>
+#include <stdio.h>
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -58,7 +59,14 @@ osThreadId_t myTask02Handle;
 const osThreadAttr_t myTask02_attributes = {
   .name = "myTask02",
   .stack_size = 128 * 4,
-  .priority = (osPriority_t) osPriorityLow,
+  .priority = (osPriority_t) osPriorityNormal,
+};
+/* Definitions for myTask03 */
+osThreadId_t myTask03Handle;
+const osThreadAttr_t myTask03_attributes = {
+  .name = "myTask03",
+  .stack_size = 128 * 4,
+  .priority = (osPriority_t) osPriorityNormal,
 };
 /* Definitions for temperatureQueue */
 osMessageQueueId_t temperatureQueueHandle;
@@ -71,7 +79,8 @@ const osMessageQueueAttr_t airQualityQueue_attributes = {
   .name = "airQualityQueue"
 };
 /* USER CODE BEGIN PV */
-
+int threshold1 = 0;
+int threshold2 = 0;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -80,7 +89,9 @@ static void MX_GPIO_Init(void);
 static void MX_ADC1_Init(void);
 static void MX_ADC2_Init(void);
 static void MX_USART1_UART_Init(void);
+void StartTask01(void *argument);
 void StartTask02(void *argument);
+void StartTask03(void *argument);
 
 /* USER CODE BEGIN PFP */
 
@@ -155,10 +166,13 @@ int main(void)
 
   /* Create the thread(s) */
   /* creation of myTask01 */
-  myTask01Handle = osThreadNew(StartTask02, NULL, &myTask01_attributes);
+  myTask01Handle = osThreadNew(StartTask01, NULL, &myTask01_attributes);
 
   /* creation of myTask02 */
   myTask02Handle = osThreadNew(StartTask02, NULL, &myTask02_attributes);
+
+  /* creation of myTask03 */
+  myTask03Handle = osThreadNew(StartTask03, NULL, &myTask03_attributes);
 
   /* USER CODE BEGIN RTOS_THREADS */
   /* add threads, ... */
@@ -400,7 +414,7 @@ static void MX_GPIO_Init(void)
   __HAL_RCC_GPIOA_CLK_ENABLE();
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(GPIOA, GPIO_PIN_4, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(GPIOA, GPIO_PIN_4|GPIO_PIN_5, GPIO_PIN_RESET);
 
   /*Configure GPIO pin : PA3 */
   GPIO_InitStruct.Pin = GPIO_PIN_3;
@@ -408,8 +422,8 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
 
-  /*Configure GPIO pin : PA4 */
-  GPIO_InitStruct.Pin = GPIO_PIN_4;
+  /*Configure GPIO pins : PA4 PA5 */
+  GPIO_InitStruct.Pin = GPIO_PIN_4|GPIO_PIN_5;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
@@ -424,6 +438,44 @@ static void MX_GPIO_Init(void)
 
 /* USER CODE END 4 */
 
+/* USER CODE BEGIN Header_StartTask01 */
+/**
+  * @brief  Function implementing the myTask01 thread.
+  * @param  argument: Not used
+  * @retval None
+  */
+/* USER CODE END Header_StartTask01 */
+void StartTask01(void *argument)
+{
+  /* USER CODE BEGIN 5 */
+  /* Infinite loop */
+  for(;;)
+  {
+	  char buffer[100];
+	  int airConvert, temConvert;
+	  if (osMessageQueueGetCount(airQualityQueueHandle) > 0) {
+		  uint16_t air;
+		  osMessageQueueGet(airQualityQueueHandle, &air, NULL, osWaitForever);
+
+		  // Convert to millivoltage
+		  airConvert = (int) 3300 * air / 4096.f;
+	  }
+
+	  if (osMessageQueueGetCount(temperatureQueueHandle) > 0) {
+		  uint16_t temperature;
+		  osMessageQueueGet(temperatureQueueHandle, &temperature, NULL, osWaitForever);
+
+		  // Convert to temperature: 10mV ~ 1 Cencius degree
+		  temConvert = (int) 330 * temperature / 4096.0f;
+	  }
+
+	  sprintf(buffer, "AO pin of air quality sensor: %d (mV).\nTemperature: %d (*C).\n==========", airConvert, temConvert);
+	  HAL_UART_Transmit_IT(&huart1, (uint8_t*)buffer, strlen(buffer));
+      osDelay(1000);
+  }
+  /* USER CODE END 5 */
+}
+
 /* USER CODE BEGIN Header_StartTask02 */
 /**
   * @brief  Function implementing the mtTask01 thread.
@@ -433,13 +485,42 @@ static void MX_GPIO_Init(void)
 /* USER CODE END Header_StartTask02 */
 void StartTask02(void *argument)
 {
-  /* USER CODE BEGIN 5 */
+  /* USER CODE BEGIN StartTask02 */
   /* Infinite loop */
   for(;;)
   {
-    osDelay(1);
+	  if (threshold1 == 1 && threshold2 == 1) {
+		  HAL_GPIO_WritePin(GPIOA, GPIO_PIN_4, GPIO_PIN_SET);
+		  HAL_GPIO_WritePin(GPIOA, GPIO_PIN_5, GPIO_PIN_SET);
+	  } else {
+		  HAL_GPIO_WritePin(GPIOA, GPIO_PIN_4, GPIO_PIN_RESET);
+		  HAL_GPIO_WritePin(GPIOA, GPIO_PIN_5, GPIO_PIN_RESET);
+		  threshold1 = 0;
+		  threshold2 = 0;
+	  }
+      osDelay(500);
   }
-  /* USER CODE END 5 */
+  /* USER CODE END StartTask02 */
+}
+
+/* USER CODE BEGIN Header_StartTask03 */
+/**
+* @brief Function implementing the myTask03 thread.
+* @param argument: Not used
+* @retval None
+*/
+/* USER CODE END Header_StartTask03 */
+void StartTask03(void *argument)
+{
+  /* USER CODE BEGIN StartTask03 */
+  /* Infinite loop */
+  for(;;)
+  {
+	  HAL_ADC_Start_IT(&hadc1);
+	  HAL_ADC_Start_IT(&hadc2);
+	  osDelay(200);
+  }
+  /* USER CODE END StartTask03 */
 }
 
 /**
