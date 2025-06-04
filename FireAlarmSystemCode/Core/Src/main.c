@@ -81,6 +81,10 @@ const osMessageQueueAttr_t airQualityQueue_attributes = {
 /* USER CODE BEGIN PV */
 int threshold1 = 0;
 int threshold2 = 0;
+int isAirReady = 0;
+int isTemperatureReady = 0;
+int airValue;
+int temperatureValue;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -155,10 +159,10 @@ int main(void)
 
   /* Create the queue(s) */
   /* creation of temperatureQueue */
-  temperatureQueueHandle = osMessageQueueNew (2, sizeof(uint16_t), &temperatureQueue_attributes);
+  temperatureQueueHandle = osMessageQueueNew (3, sizeof(uint16_t), &temperatureQueue_attributes);
 
   /* creation of airQualityQueue */
-  airQualityQueueHandle = osMessageQueueNew (2, sizeof(uint16_t), &airQualityQueue_attributes);
+  airQualityQueueHandle = osMessageQueueNew (3, sizeof(uint16_t), &airQualityQueue_attributes);
 
   /* USER CODE BEGIN RTOS_QUEUES */
   /* add queues, ... */
@@ -256,7 +260,6 @@ static void MX_ADC1_Init(void)
 
   /* USER CODE END ADC1_Init 0 */
 
-  ADC_AnalogWDGConfTypeDef AnalogWDGConfig = {0};
   ADC_ChannelConfTypeDef sConfig = {0};
 
   /* USER CODE BEGIN ADC1_Init 1 */
@@ -273,18 +276,6 @@ static void MX_ADC1_Init(void)
   hadc1.Init.DataAlign = ADC_DATAALIGN_RIGHT;
   hadc1.Init.NbrOfConversion = 1;
   if (HAL_ADC_Init(&hadc1) != HAL_OK)
-  {
-    Error_Handler();
-  }
-
-  /** Configure Analog WatchDog 1
-  */
-  AnalogWDGConfig.WatchdogMode = ADC_ANALOGWATCHDOG_SINGLE_REG;
-  AnalogWDGConfig.HighThreshold = 4095;
-  AnalogWDGConfig.LowThreshold = 0;
-  AnalogWDGConfig.Channel = ADC_CHANNEL_1;
-  AnalogWDGConfig.ITMode = DISABLE;
-  if (HAL_ADC_AnalogWDGConfig(&hadc1, &AnalogWDGConfig) != HAL_OK)
   {
     Error_Handler();
   }
@@ -316,7 +307,6 @@ static void MX_ADC2_Init(void)
 
   /* USER CODE END ADC2_Init 0 */
 
-  ADC_AnalogWDGConfTypeDef AnalogWDGConfig = {0};
   ADC_ChannelConfTypeDef sConfig = {0};
 
   /* USER CODE BEGIN ADC2_Init 1 */
@@ -333,18 +323,6 @@ static void MX_ADC2_Init(void)
   hadc2.Init.DataAlign = ADC_DATAALIGN_RIGHT;
   hadc2.Init.NbrOfConversion = 1;
   if (HAL_ADC_Init(&hadc2) != HAL_OK)
-  {
-    Error_Handler();
-  }
-
-  /** Configure Analog WatchDog 1
-  */
-  AnalogWDGConfig.WatchdogMode = ADC_ANALOGWATCHDOG_SINGLE_REG;
-  AnalogWDGConfig.HighThreshold = 4095;
-  AnalogWDGConfig.LowThreshold = 0;
-  AnalogWDGConfig.Channel = ADC_CHANNEL_2;
-  AnalogWDGConfig.ITMode = DISABLE;
-  if (HAL_ADC_AnalogWDGConfig(&hadc2, &AnalogWDGConfig) != HAL_OK)
   {
     Error_Handler();
   }
@@ -449,30 +427,43 @@ void StartTask01(void *argument)
 {
   /* USER CODE BEGIN 5 */
   /* Infinite loop */
-  for(;;)
-  {
-	  char buffer[100];
-	  int airConvert, temConvert;
-	  if (osMessageQueueGetCount(airQualityQueueHandle) > 0) {
-		  uint16_t air;
-		  osMessageQueueGet(airQualityQueueHandle, &air, NULL, osWaitForever);
+	HAL_ADC_Start_IT(&hadc1);
+	HAL_ADC_Start_IT(&hadc2);
+	for (;;) {
+		//HAL_UART_Transmit(&huart1, (uint8_t*) "Task 3\n", strlen("Task 3\n"), 100);
+		if (isAirReady == 1) {
+			isAirReady = 0;
+			if (osMessageQueueGetCount(airQualityQueueHandle) < 3) {
+				osStatus_t status = osMessageQueuePut(airQualityQueueHandle,
+						&airValue, 0, 10);
+				if (status != osOK) {
+					// In ra lỗi nếu việc đưa vào queue thất bại
+					char error_msg[50];
+					sprintf(error_msg, "Queue 1 Put Error: %d\n", status);
+					HAL_UART_Transmit(&huart1, (uint8_t*) error_msg,
+							strlen(error_msg), 100);
+				}
+			}
+			HAL_ADC_Start_IT(&hadc1);
+		}
 
-		  // Convert to millivoltage
-		  airConvert = (int) 3300 * air / 4096.f;
-	  }
-
-	  if (osMessageQueueGetCount(temperatureQueueHandle) > 0) {
-		  uint16_t temperature;
-		  osMessageQueueGet(temperatureQueueHandle, &temperature, NULL, osWaitForever);
-
-		  // Convert to temperature: 10mV ~ 1 Cencius degree
-		  temConvert = (int) 330 * temperature / 4096.0f;
-	  }
-
-	  sprintf(buffer, "AO pin of air quality sensor: %d (mV).\nTemperature: %d (*C).\n==========", airConvert, temConvert);
-	  HAL_UART_Transmit_IT(&huart1, (uint8_t*)buffer, strlen(buffer));
-      osDelay(1000);
-  }
+		if (isTemperatureReady == 1) {
+			isTemperatureReady = 0;
+			if (osMessageQueueGetCount(temperatureQueueHandle) < 3) {
+				osStatus_t status = osMessageQueuePut(temperatureQueueHandle,
+						&temperatureValue, 0, 10);
+				if (status != osOK) {
+					// In ra lỗi nếu việc đưa vào queue thất bại
+					char error_msg[50];
+					sprintf(error_msg, "Queue 2 Put Error: %d\n", status);
+					HAL_UART_Transmit(&huart1, (uint8_t*) error_msg,
+							strlen(error_msg), 100);
+				}
+			}
+			HAL_ADC_Start_IT(&hadc2);
+		}
+		osDelay(500);
+	}
   /* USER CODE END 5 */
 }
 
@@ -514,12 +505,34 @@ void StartTask03(void *argument)
 {
   /* USER CODE BEGIN StartTask03 */
   /* Infinite loop */
-  for(;;)
-  {
-	  HAL_ADC_Start_IT(&hadc1);
-	  HAL_ADC_Start_IT(&hadc2);
-	  osDelay(200);
-  }
+	for (;;) {
+		if (osMessageQueueGetCount(airQualityQueueHandle) > 0 && osMessageQueueGetCount(temperatureQueueHandle) > 0) {
+			char buffer[100];
+			uint16_t air, tem, airConvert, temConvert;
+			osMessageQueueGet(airQualityQueueHandle, &air, NULL, 100);
+			osMessageQueueGet(temperatureQueueHandle, &tem, NULL, 100);
+
+			// Convert to millivoltage
+			//airConvert = (int) 3300 * air / 4096.f;
+			airConvert = air * 3300 / 4096;
+			temConvert = tem * 330 / 4096;
+			sprintf(buffer,
+					"Air quality sensor: %d (mV).\nTemperature: %d (*C).\n==========\n",
+					airConvert, temConvert);
+			HAL_UART_Transmit(&huart1, (uint8_t*) buffer, strlen(buffer), 100);
+		}
+		/*
+		 if (osMessageQueueGetCount(temperatureQueueHandle) > 0) {
+		 uint16_t temperature;
+		 osMessageQueueGet(temperatureQueueHandle, &temperature, NULL, osWaitForever);
+
+		 // Convert to temperature: 10mV ~ 1 Cencius degree
+		 //temConvert = (int) 330 * temperature / 4096.0f;
+		 temConvert = temperature;
+		 }
+		 */
+		osDelay(2000);
+	}
   /* USER CODE END StartTask03 */
 }
 
