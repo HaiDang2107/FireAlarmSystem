@@ -6,5 +6,5 @@
 ../Core/Src/main.c:383:13:MX_GPIO_Init	1
 ../Core/Src/main.c:426:6:StartTask01	7
 ../Core/Src/main.c:477:6:StartTask02	3
-../Core/Src/main.c:504:6:StartTask03	5
-../Core/Src/main.c:543:6:Error_Handler	1
+../Core/Src/main.c:502:6:StartTask03	7
+../Core/Src/main.c:549:6:Error_Handler	1

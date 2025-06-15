@@ -433,7 +433,7 @@ void StartTask01(void *argument)
 		//HAL_UART_Transmit(&huart1, (uint8_t*) "Task 3\n", strlen("Task 3\n"), 100);
 		if (isAirReady == 1) {
 			isAirReady = 0;
-			if (osMessageQueueGetCount(airQualityQueueHandle) < 3) {
+			if (osMessageQueueGetCount(airQualityQueueHandle) < 2) {
 				osStatus_t status = osMessageQueuePut(airQualityQueueHandle,
 						&airValue, 0, 10);
 				if (status != osOK) {
@@ -449,7 +449,7 @@ void StartTask01(void *argument)
 
 		if (isTemperatureReady == 1) {
 			isTemperatureReady = 0;
-			if (osMessageQueueGetCount(temperatureQueueHandle) < 3) {
+			if (osMessageQueueGetCount(temperatureQueueHandle) < 2) {
 				osStatus_t status = osMessageQueuePut(temperatureQueueHandle,
 						&temperatureValue, 0, 10);
 				if (status != osOK) {
@@ -480,15 +480,13 @@ void StartTask02(void *argument)
   /* Infinite loop */
   for(;;)
   {
-	  if (threshold1 == 1 && threshold2 == 1) {
-		  HAL_GPIO_WritePin(GPIOA, GPIO_PIN_4, GPIO_PIN_SET);
-		  HAL_GPIO_WritePin(GPIOA, GPIO_PIN_5, GPIO_PIN_SET);
-	  } else {
-		  HAL_GPIO_WritePin(GPIOA, GPIO_PIN_4, GPIO_PIN_RESET);
-		  HAL_GPIO_WritePin(GPIOA, GPIO_PIN_5, GPIO_PIN_RESET);
-		  threshold1 = 0;
-		  threshold2 = 0;
-	  }
+	  // ACTIVE LOW: IN = 0 ==> The circuit is closed
+	  if (threshold1 == 1) HAL_GPIO_WritePin(GPIOA, GPIO_PIN_4, GPIO_PIN_RESET);
+	  else HAL_GPIO_WritePin(GPIOA, GPIO_PIN_4, GPIO_PIN_SET);
+
+	  if (threshold2 == 1) HAL_GPIO_WritePin(GPIOA, GPIO_PIN_5, GPIO_PIN_RESET);
+	  else HAL_GPIO_WritePin(GPIOA, GPIO_PIN_5, GPIO_PIN_SET);
+
       osDelay(500);
   }
   /* USER CODE END StartTask02 */
@@ -516,9 +514,17 @@ void StartTask03(void *argument)
 			//airConvert = (int) 3300 * air / 4096.f;
 			airConvert = air * 3300 / 4096;
 			temConvert = tem * 330 / 4096;
+
+			if (airConvert > 1000) threshold1 = 1;
+			else threshold1 = 0;
+
+			if (temConvert > 70) threshold2 = 1;
+			else threshold2 = 0;
+
+
 			sprintf(buffer,
-					"Air quality sensor: %d (mV).\nTemperature: %d (*C).\n==========\n",
-					airConvert, temConvert);
+					"Air quality sensor: %d (mV).\nTemperature: %d (*C).\nTh1 = %d, Th2 = %d\n==========\n",
+					airConvert, temConvert, threshold1, threshold2);
 			HAL_UART_Transmit(&huart1, (uint8_t*) buffer, strlen(buffer), 100);
 		}
 		/*
