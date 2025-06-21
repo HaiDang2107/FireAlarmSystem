@@ -462,7 +462,7 @@ void StartTask01(void *argument)
 			}
 			HAL_ADC_Start_IT(&hadc2);
 		}
-		osDelay(500);
+		osDelay(250);
 	}
   /* USER CODE END 5 */
 }
@@ -487,7 +487,7 @@ void StartTask02(void *argument)
 	  if (threshold2 == 1) HAL_GPIO_WritePin(GPIOA, GPIO_PIN_5, GPIO_PIN_RESET);
 	  else HAL_GPIO_WritePin(GPIOA, GPIO_PIN_5, GPIO_PIN_SET);
 
-      osDelay(500);
+      osDelay(250);
   }
   /* USER CODE END StartTask02 */
 }
@@ -510,12 +510,10 @@ void StartTask03(void *argument)
 			osMessageQueueGet(airQualityQueueHandle, &air, NULL, 100);
 			osMessageQueueGet(temperatureQueueHandle, &tem, NULL, 100);
 
-			// Convert to millivoltage
-			//airConvert = (int) 3300 * air / 4096.f;
-			airConvert = air * 3300 / 4096;
-			temConvert = tem * 330 / 4096;
+			airConvert = air * 3300 / 4096; // Convert to millivoltage
+			temConvert = tem * 330 / 4096; // Convert to temperature: 10mV ~ 1 Cencius degree
 
-			if (airConvert > 1000) threshold1 = 1;
+			if (airConvert > 600) threshold1 = 1;
 			else threshold1 = 0;
 
 			if (temConvert > 70) threshold2 = 1;
@@ -527,17 +525,7 @@ void StartTask03(void *argument)
 					airConvert, temConvert, threshold1, threshold2);
 			HAL_UART_Transmit(&huart1, (uint8_t*) buffer, strlen(buffer), 100);
 		}
-		/*
-		 if (osMessageQueueGetCount(temperatureQueueHandle) > 0) {
-		 uint16_t temperature;
-		 osMessageQueueGet(temperatureQueueHandle, &temperature, NULL, osWaitForever);
-
-		 // Convert to temperature: 10mV ~ 1 Cencius degree
-		 //temConvert = (int) 330 * temperature / 4096.0f;
-		 temConvert = temperature;
-		 }
-		 */
-		osDelay(2000);
+		osDelay(1000);
 	}
   /* USER CODE END StartTask03 */
 }
